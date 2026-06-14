@@ -1,0 +1,14 @@
+{
+  "name": "smk-kurikulum",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "seed": "cd server && npm run seed"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
