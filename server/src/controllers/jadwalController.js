@@ -16,7 +16,7 @@ async function generate(req, res) {
     gaStatus.generasi = progress.generasi;
     gaStatus.fitness = progress.fitness;
   }).then(result => {
-    gaStatus = { running: false, generasi: gaStatus.generasi, fitness: result.fitness, selesai: true, error: null, totalJadwal: result.totalJadwal };
+    gaStatus = { running: false, generasi: gaStatus.generasi, fitness: result.fitness, selesai: true, error: null, totalJadwal: result.totalJadwal, pelanggaranHard: result.pelanggaranHard, jpDiluar: result.jpDiluar, kontrakPkl: result.kontrakPkl };
   }).catch(err => {
     gaStatus = { running: false, generasi: gaStatus.generasi, fitness: null, selesai: false, error: err.message };
   });
@@ -98,4 +98,47 @@ async function insight(req, res) {
   res.json({ kepuasan, perGuru: Object.values(perGuru), stats });
 }
 
-module.exports = { generate, status, index, insight };
+// Peta penggunaan ruangan untuk dashboard
+async function ruanganMap(req, res) {
+  const HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const SHIFT = ['Pagi', 'Siang'];
+  const SLOT_PER_SHIFT = 5;
+  const kapasitas = HARI.length * SHIFT.length * SLOT_PER_SHIFT; // 60 slot/minggu
+
+  const ruangan = await Ruangan.findAll({ order: [['jenis_ruangan', 'ASC'], ['id_ruangan', 'ASC']] });
+  const jadwal = await JadwalOptimal.findAll({
+    include: [
+      { model: KontrakMengajar, include: [MataPelajaran, Guru] },
+      { model: Rombel },
+    ],
+  });
+
+  const byRoom = {};
+  jadwal.forEach(j => {
+    (byRoom[j.id_ruangan] = byRoom[j.id_ruangan] || []).push({
+      hari: j.hari,
+      slot_jam: j.slot_jam,
+      waktu_shift: j.waktu_shift,
+      mapel: j.KontrakMengajar?.MataPelajaran?.nama_mapel || null,
+      guru: j.KontrakMengajar?.Guru?.nama_guru || null,
+      rombel: j.Rombel?.nama_rombel || j.id_rombel,
+    });
+  });
+
+  const data = ruangan.map(r => {
+    const pakai = byRoom[r.id_ruangan] || [];
+    return {
+      id_ruangan: r.id_ruangan,
+      nama_ruangan: r.nama_ruangan,
+      jenis_ruangan: r.jenis_ruangan,
+      id_jurusan: r.id_jurusan || null,
+      terpakai: pakai.length,
+      kapasitas,
+      detail: pakai,
+    };
+  });
+
+  res.json({ kapasitas, ruangan: data });
+}
+
+module.exports = { generate, status, index, insight, ruanganMap };

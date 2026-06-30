@@ -67,8 +67,15 @@ export default function JadwalGenerate() {
         )}
 
         {status?.selesai && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-sm text-green-700">
-            ✅ Selesai! {status.totalJadwal} slot jadwal tersimpan. Fitness: {status.fitness?.toFixed(2)}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4 text-sm text-green-700 space-y-1">
+            <div>✅ Selesai! {status.totalJadwal} slot jadwal tersimpan. Fitness: {status.fitness?.toFixed(2)}</div>
+            <div className="text-xs text-green-600">
+              {status.pelanggaranHard === 0
+                ? 'Tidak ada pelanggaran (bentrok/ruangan).'
+                : `⚠️ ${status.pelanggaranHard} pelanggaran tersisa (bentrok waktu).`}
+              {status.jpDiluar > 0 && ` · ${status.jpDiluar} JP di luar dijadwalkan tanpa ruangan.`}
+              {status.kontrakPkl > 0 && ` · ${status.kontrakPkl} kontrak PKL dijadwalkan tanpa ruangan.`}
+            </div>
           </div>
         )}
 

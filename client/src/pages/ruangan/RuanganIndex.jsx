@@ -8,6 +8,7 @@ const BADGE = { Teori: 'bg-gray-100 text-gray-600', Lab: 'bg-green-100 text-gree
 export default function RuanganIndex() {
   const [data, setData] = useState([]);
   const [jenis, setJenis] = useState('');
+  const [mapelMap, setMapelMap] = useState({});
 
   const load = () => {
     const params = {};
@@ -16,6 +17,16 @@ export default function RuanganIndex() {
   };
 
   useEffect(() => { load(); }, [jenis]);
+  useEffect(() => {
+    api.get('/mata-pelajaran').then(r => {
+      const m = {};
+      r.data.forEach(x => { m[x.id_mapel] = x.nama_mapel; });
+      setMapelMap(m);
+    }).catch(() => {});
+  }, []);
+
+  const mapelDariRuangan = (r) =>
+    Array.isArray(r.id_mapel_list) ? r.id_mapel_list : (r.id_mapel_list ? String(r.id_mapel_list).split(',').map(s => s.trim()).filter(Boolean) : []);
 
   const hapus = async id => {
     if (!confirm('Hapus ruangan ini?')) return;
@@ -42,6 +53,7 @@ export default function RuanganIndex() {
               <th className="px-4 py-3 text-left">ID</th>
               <th className="px-4 py-3 text-left">Nama Ruangan</th>
               <th className="px-4 py-3 text-left">Jenis</th>
+              <th className="px-4 py-3 text-left">Mapel di Ruangan Ini</th>
               <th className="px-4 py-3 text-left">Aksi</th>
             </tr>
           </thead>
@@ -51,6 +63,21 @@ export default function RuanganIndex() {
                 <td className="px-4 py-3 font-mono text-gray-500">{r.id_ruangan}</td>
                 <td className="px-4 py-3 font-medium text-gray-800">{r.nama_ruangan}</td>
                 <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${BADGE[r.jenis_ruangan]}`}>{r.jenis_ruangan}</span></td>
+                <td className="px-4 py-3">
+                  {r.jenis_ruangan === 'Teori' ? (
+                    <span className="text-xs text-gray-400">Mapel umum (bebas)</span>
+                  ) : mapelDariRuangan(r).length > 0 ? (
+                    <div className="flex flex-wrap gap-1 max-w-xs">
+                      {mapelDariRuangan(r).map(idm => (
+                        <span key={idm} className="bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-xs" title={idm}>
+                          {mapelMap[idm] || idm}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-gray-400">{r.id_jurusan ? `Semua produktif ${r.id_jurusan}` : 'Belum diatur'}</span>
+                  )}
+                </td>
                 <td className="px-4 py-3 flex gap-2">
                   <Link to={`/ruangan/${r.id_ruangan}/edit`} className="text-blue-600 hover:underline">Edit</Link>
                   <button onClick={() => hapus(r.id_ruangan)} className="text-red-500 hover:underline">Hapus</button>

@@ -18,6 +18,9 @@ import KontrakForm from './pages/kontrak/KontrakForm';
 import JadwalIndex from './pages/jadwal/JadwalIndex';
 import JadwalGenerate from './pages/jadwal/JadwalGenerate';
 import JadwalInsight from './pages/jadwal/JadwalInsight';
+import KalenderGuru from './pages/jadwal/KalenderGuru';
+import JurusanIndex from './pages/JurusanIndex';
+import Settings from './pages/Settings';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -59,6 +62,11 @@ function AppRoutes() {
       <Route path="/jadwal" element={<ProtectedRoute><JadwalIndex /></ProtectedRoute>} />
       <Route path="/jadwal/generate" element={<ProtectedRoute><JadwalGenerate /></ProtectedRoute>} />
       <Route path="/jadwal/insight" element={<ProtectedRoute><JadwalInsight /></ProtectedRoute>} />
+      <Route path="/jadwal/kalender-guru" element={<ProtectedRoute><KalenderGuru /></ProtectedRoute>} />
+
+      <Route path="/jurusan" element={<ProtectedRoute><JurusanIndex /></ProtectedRoute>} />
+
+      <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

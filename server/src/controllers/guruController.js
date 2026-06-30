@@ -17,12 +17,18 @@ async function show(req, res) {
   res.json(guru);
 }
 
+// jenis_guru bisa string ('Umum') atau array (['Umum','Jurusan']) — keduanya valid.
+function jenisKosong(jenis_guru) {
+  if (Array.isArray(jenis_guru)) return jenis_guru.length === 0;
+  return !jenis_guru;
+}
+
 async function store(req, res) {
-  const { nama_guru, status_kepegawaian, jenis_guru, total_jam_mengajar } = req.body;
-  if (!nama_guru || !status_kepegawaian || !jenis_guru) {
+  const { nama_guru, status_kepegawaian, jenis_guru, id_jurusan, total_jam_mengajar } = req.body;
+  if (!nama_guru || !status_kepegawaian || jenisKosong(jenis_guru)) {
     return res.status(400).json({ message: 'Semua field wajib diisi' });
   }
-  
+
   const allData = await Guru.findAll({ attributes: ['id_guru'] });
   let max = 0;
   allData.forEach(item => {
@@ -31,7 +37,13 @@ async function store(req, res) {
   });
   const id_guru = `G${String(max + 1).padStart(3, '0')}`;
 
-  const guru = await Guru.create({ id_guru, nama_guru, status_kepegawaian, jenis_guru, total_jam_mengajar: total_jam_mengajar || 0 });
+  // Jurusan hanya disimpan jika guru bertipe Jurusan
+  const isJurusan = Array.isArray(jenis_guru) ? jenis_guru.includes('Jurusan') : jenis_guru === 'Jurusan';
+  const guru = await Guru.create({
+    id_guru, nama_guru, status_kepegawaian, jenis_guru,
+    id_jurusan: isJurusan ? (id_jurusan || null) : null,
+    total_jam_mengajar: total_jam_mengajar || 0,
+  });
   res.status(201).json(guru);
 }
 
@@ -39,8 +51,13 @@ async function update(req, res) {
   const guru = await Guru.findByPk(req.params.id);
   if (!guru) return res.status(404).json({ message: 'Guru tidak ditemukan' });
 
-  const { nama_guru, status_kepegawaian, jenis_guru, total_jam_mengajar } = req.body;
-  await guru.update({ nama_guru, status_kepegawaian, jenis_guru, total_jam_mengajar });
+  const { nama_guru, status_kepegawaian, jenis_guru, id_jurusan, total_jam_mengajar } = req.body;
+  const isJurusan = Array.isArray(jenis_guru) ? jenis_guru.includes('Jurusan') : jenis_guru === 'Jurusan';
+  await guru.update({
+    nama_guru, status_kepegawaian, jenis_guru,
+    id_jurusan: isJurusan ? (id_jurusan || null) : null,
+    total_jam_mengajar,
+  });
   res.json(guru);
 }
 

@@ -61,6 +61,9 @@ export default function MapelIndex() {
               <th className="px-4 py-3 text-left">ID</th>
               <th className="px-4 py-3 text-left">Nama Mapel</th>
               <th className="px-4 py-3 text-left">Kategori</th>
+              <th className="px-4 py-3 text-left">Tingkat</th>
+              <th className="px-4 py-3 text-left">Guru Pengampu</th>
+              <th className="px-4 py-3 text-left">Jurusan</th>
               <th className="px-4 py-3 text-center">Alokasi/Minggu</th>
               <th className="px-4 py-3 text-center">JP Diluar</th>
               <th className="px-4 py-3 text-center">Total JP</th>
@@ -73,6 +76,9 @@ export default function MapelIndex() {
                 <td className="px-4 py-3 font-mono text-gray-500">{m.id_mapel}</td>
                 <td className="px-4 py-3 font-medium text-gray-800">{m.nama_mapel}</td>
                 <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${BADGE[m.kategori_mapel]}`}>{m.kategori_mapel}</span></td>
+                <td className="px-4 py-3 font-medium text-gray-800">{m.tingkat}</td>
+                <td className="px-4 py-3 font-medium text-gray-800">{m.jenis_guru}</td>
+                <td className="px-4 py-3 font-medium text-gray-800">{m.id_jurusan}</td>
                 <td className="px-4 py-3 text-center text-gray-700">
                   <span className="font-medium">{m.alokasi_per_minggu ?? '-'}</span>
                   <span className="text-xs text-gray-400 ml-1">JP</span>

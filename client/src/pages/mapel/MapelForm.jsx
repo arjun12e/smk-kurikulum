@@ -7,14 +7,43 @@ export default function MapelForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
-  const [form, setForm] = useState({ id_mapel: '', nama_mapel: '', kategori_mapel: 'Umum', alokasi_per_minggu: 0, jp_diluar: 0 });
+  const [form, setForm] = useState({ id_mapel: '', nama_mapel: '', kategori_mapel: 'Umum', tingkat: '', jenis_guru: 'Umum', id_jurusan: '', alokasi_per_minggu: 0, jp_diluar: 0 });
+  const [jurusanList, setJurusanList] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (isEdit) api.get(`/mata-pelajaran/${id}`).then(r => setForm(r.data));
-  }, [id]);
+    api.get('/jurusan').then(r => setJurusanList(r.data)).catch(() => setJurusanList([]));
+  }, []);
+
+  useEffect(() => {
+    if (isEdit) {
+      api.get(`/mata-pelajaran/${id}`).then(r => setForm({ ...r.data, id_jurusan: r.data.id_jurusan || '' }));
+    } else {
+      // Auto-generate next ID for add mode
+      api.get('/mata-pelajaran').then(res => {
+        const maxNum = res.data.reduce((max, m) => {
+          const num = parseInt(m.id_mapel.replace('MP', '')) || 0;
+          return num > max ? num : max;
+        }, 0);
+        setForm(f => ({ ...f, id_mapel: `MP${String(maxNum + 1).padStart(3, '0')}` }));
+      }).catch(() => setForm(f => ({ ...f, id_mapel: 'MP001' })));
+    }
+  }, [id, isEdit]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleTingkatCheckbox = (tingkat, isChecked) => {
+    const currentTingkat = form.tingkat ? form.tingkat.split(',').filter(t => t) : [];
+    let newTingkat;
+    
+    if (isChecked) {
+      newTingkat = [...currentTingkat, tingkat];
+    } else {
+      newTingkat = currentTingkat.filter(t => t !== tingkat);
+    }
+    
+    set('tingkat', newTingkat.join(','));
+  };
 
   const submit = async e => {
     e.preventDefault();
@@ -33,9 +62,9 @@ export default function MapelForm() {
       <h2 className="text-xl font-bold text-gray-800 mb-6">{isEdit ? 'Edit' : 'Tambah'} Mata Pelajaran</h2>
       <form onSubmit={submit} className="bg-white rounded-xl shadow-sm p-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">ID Mapel</label>
-          <input value={form.id_mapel} onChange={e => set('id_mapel', e.target.value)} disabled={isEdit} placeholder="MP021"
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50" required />
+          <label className="block text-sm font-medium text-gray-700 mb-1">ID Mapel <span className="text-gray-400 font-normal">(Auto-generate)</span></label>
+          <input value={form.id_mapel} onChange={e => set('id_mapel', e.target.value)} disabled
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-600" />
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Nama Mata Pelajaran</label>
@@ -50,6 +79,45 @@ export default function MapelForm() {
             <option>Muatan Lokal</option><option>Bimbingan dan Konseling</option>
           </select>
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Guru</label>
+          <select value={form.jenis_guru} onChange={e => set('jenis_guru', e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option>Umum</option><option>Jurusan</option>
+          </select>
+        </div>
+        {form.kategori_mapel === 'Produktif' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Jurusan Mapel <span className="text-gray-400 font-normal">(penempatan Lab/Bengkel)</span></label>
+            <select value={form.id_jurusan || ''} onChange={e => set('id_jurusan', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">— Ikuti jurusan rombel —</option>
+              {jurusanList.map(j => <option key={j.id_jurusan} value={j.id_jurusan}>{j.id_jurusan} — {j.nama_jurusan}</option>)}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">Mapel produktif ini akan dijadwalkan di Lab/Bengkel jurusan tsb. Kosongkan agar mengikuti jurusan rombel.</p>
+          </div>
+        )}
+       <div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">Tingkat / Kelas (Bisa pilih lebih dari satu)</label>
+  <div className="flex gap-4 p-2 border border-gray-300 rounded-lg bg-gray-50">
+    {['X', 'XI', 'XII'].map((tingkat) => {
+      
+      const isChecked = form.tingkat ? form.tingkat.split(',').includes(tingkat) : false;
+
+      return (
+        <label key={tingkat} className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isChecked}
+            onChange={(e) => handleTingkatCheckbox(tingkat, e.target.checked)}
+            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 accent-blue-600"
+          />
+          Kelas {tingkat}
+        </label>
+      );
+    })}
+  </div>
+</div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Alokasi per Minggu <span className="text-gray-400 font-normal">(JP)</span></label>

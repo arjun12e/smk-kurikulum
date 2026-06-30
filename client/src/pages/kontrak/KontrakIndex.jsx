@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
 const HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const SHIFT = ['Pagi', 'Siang'];
 const KASTA_BADGE = { PNS: 'bg-blue-100 text-blue-700', GTY: 'bg-green-100 text-green-700', GTT: 'bg-gray-100 text-gray-600' };
 const MAPEL_BADGE = { Produktif: 'bg-red-100 text-red-700', Umum: 'bg-blue-100 text-blue-700', PelajaranKejuruan: 'bg-purple-100 text-purple-700', MuatanLokal: 'bg-yellow-100 text-yellow-700' };
 
@@ -46,7 +47,19 @@ export default function KontrakIndex() {
 
   const preferensiRingkas = (pref) => {
     if (!pref) return '-';
-    return HARI.map(h => `${h.slice(0, 3)}:${pref[h] || 3}`).join(' ');
+    // Support both old format (flat) and new format (with hari/shift)
+    const hari = pref.hari || pref;
+    const shift = pref.shift || {};
+    
+    const hariStr = HARI.map(h => `${h.slice(0, 3)}:${hari[h] || 3}`).join(' ');
+    const shiftStr = SHIFT.map(s => `${s}:${shift[s] || 3}`).join(' ');
+    
+    return (
+      <div>
+        <div className="text-xs text-gray-500 mb-1">{hariStr}</div>
+        <div className="text-xs text-orange-500">{shiftStr}</div>
+      </div>
+    );
   };
 
   return (
@@ -60,7 +73,8 @@ export default function KontrakIndex() {
 
       {warnings.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm text-amber-700">
-          ⚠️ <strong>Peringatan:</strong> {warnings.map(w => `${w.id_guru} (${w.total_jp} JP/minggu)`).join(', ')} melebihi 24 JP/minggu
+          ⚠️ <strong>Peringatan — melebihi jatah JP guru:</strong>{' '}
+          {warnings.map(w => `${w.nama_guru || w.id_guru} (${w.total_jp}/${w.batas} JP)`).join(', ')}
         </div>
       )}
 
@@ -90,7 +104,7 @@ export default function KontrakIndex() {
               <th className="px-4 py-3 text-left">Mata Pelajaran</th>
               <th className="px-4 py-3 text-left">Rombel</th>
               <th className="px-4 py-3 text-left">JP</th>
-              <th className="px-4 py-3 text-left">Preferensi</th>
+              <th className="px-4 py-3 text-left">Preferensi (Hari / Sesi)</th>
               <th className="px-4 py-3 text-left">Aksi</th>
             </tr>
           </thead>
@@ -105,9 +119,12 @@ export default function KontrakIndex() {
                   <div>{k.MataPelajaran?.nama_mapel}</div>
                   <span className={`text-xs px-1.5 py-0.5 rounded ${MAPEL_BADGE[k.MataPelajaran?.kategori_mapel]}`}>{k.MataPelajaran?.kategori_mapel}</span>
                 </td>
-                <td className="px-4 py-3 text-gray-600">{k.Rombel?.nama_rombel}</td>
+                <td className="px-4 py-3 text-gray-600">
+                  {k.Rombel?.nama_rombel}
+                  {(k.Rombel?.is_pkl || k.is_pkl) && <span className="ml-2 bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs font-semibold">PKL</span>}
+                </td>
                 <td className="px-4 py-3 font-bold text-gray-800">{k.jumlah_jp}</td>
-                <td className="px-4 py-3 font-mono text-xs text-gray-500">{preferensiRingkas(k.preferensi_hari)}</td>
+                <td className="px-4 py-3 font-mono text-xs">{preferensiRingkas(k.preferensi_hari)}</td>
                 <td className="px-4 py-3 flex gap-2">
                   <Link to={`/kontrak-mengajar/${k.id_kontrak}/edit`} className="text-blue-600 hover:underline">Edit</Link>
                   <button onClick={() => hapus(k.id_kontrak)} className="text-red-500 hover:underline">Hapus</button>

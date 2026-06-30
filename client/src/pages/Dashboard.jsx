@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../api/axios';
+import RuanganMap from '../components/RuanganMap';
 
 export default function Dashboard() {
   const [stats, setStats] = useState(null);
@@ -12,6 +13,12 @@ export default function Dashboard() {
     { label: 'Total Guru', value: stats.totalGuru, icon: '👨‍🏫', color: 'bg-blue-50 text-blue-700' },
     { label: 'Total Rombel', value: stats.totalRombel, icon: '🏫', color: 'bg-green-50 text-green-700' },
     { label: 'Kontrak Mengajar', value: stats.totalKontrak, icon: '📋', color: 'bg-purple-50 text-purple-700' },
+    {
+      label: 'Rombel PKL',
+      value: stats.totalRombelPkl ?? 0,
+      icon: '🏢',
+      color: 'bg-amber-50 text-amber-700',
+    },
     {
       label: 'Status Jadwal',
       value: stats.jadwalSudahDigenerate ? `${stats.totalJadwal} slot` : 'Belum digenerate',
@@ -28,7 +35,7 @@ export default function Dashboard() {
         <p className="text-gray-500 text-sm">Memuat data...</p>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
             {cards.map(card => (
               <div key={card.label} className={`rounded-xl p-5 ${card.color}`}>
                 <div className="text-3xl mb-2">{card.icon}</div>
@@ -39,10 +46,12 @@ export default function Dashboard() {
           </div>
 
           {!stats.jadwalSudahDigenerate && (
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm text-orange-700">
+            <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm text-orange-700 mb-8">
               <strong>Jadwal belum digenerate.</strong> Klik menu <em>Jalankan Algoritma GA</em> di sidebar untuk memulai optimasi penjadwalan.
             </div>
           )}
+
+          <RuanganMap />
         </>
       )}
     </div>

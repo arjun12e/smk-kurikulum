@@ -25,14 +25,14 @@ async function show(req, res) {
 }
 
 async function store(req, res) {
-  const { id_rombel, nama_rombel, tingkat, jurusan } = req.body;
+  const { id_rombel, nama_rombel, tingkat, jurusan, is_pkl } = req.body;
   if (!id_rombel || !nama_rombel || !tingkat || !jurusan) {
     return res.status(400).json({ message: 'Semua field wajib diisi' });
   }
   const exists = await Rombel.findByPk(id_rombel);
   if (exists) return res.status(422).json({ message: 'ID Rombel sudah digunakan' });
 
-  const rombel = await Rombel.create({ id_rombel, nama_rombel, tingkat, jurusan });
+  const rombel = await Rombel.create({ id_rombel, nama_rombel, tingkat, jurusan, is_pkl: is_pkl || false });
   res.status(201).json(rombel);
 }
 
@@ -40,8 +40,8 @@ async function update(req, res) {
   const rombel = await Rombel.findByPk(req.params.id);
   if (!rombel) return res.status(404).json({ message: 'Rombel tidak ditemukan' });
 
-  const { nama_rombel, tingkat, jurusan } = req.body;
-  await rombel.update({ nama_rombel, tingkat, jurusan });
+  const { nama_rombel, tingkat, jurusan, is_pkl } = req.body;
+  await rombel.update({ nama_rombel, tingkat, jurusan, is_pkl: is_pkl !== undefined ? is_pkl : rombel.is_pkl });
   res.json(rombel);
 }
 

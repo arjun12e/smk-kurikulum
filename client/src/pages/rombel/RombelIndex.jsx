@@ -24,6 +24,15 @@ export default function RombelIndex() {
     } catch (err) { toast.error(err.response?.data?.message || 'Gagal'); }
   };
 
+  const togglePkl = async (r) => {
+    try {
+      await api.put(`/rombel/${r.id_rombel}`, {
+        nama_rombel: r.nama_rombel, tingkat: r.tingkat, jurusan: r.jurusan, is_pkl: !r.is_pkl,
+      });
+      setData(prev => prev.map(x => x.id_rombel === r.id_rombel ? { ...x, is_pkl: !x.is_pkl } : x));
+    } catch (err) { toast.error('Gagal mengubah status PKL'); }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -44,6 +53,7 @@ export default function RombelIndex() {
               <th className="px-4 py-3 text-left">Nama Rombel</th>
               <th className="px-4 py-3 text-left">Tingkat</th>
               <th className="px-4 py-3 text-left">Jurusan</th>
+              <th className="px-4 py-3 text-center">PKL</th>
               <th className="px-4 py-3 text-left">Kontrak</th>
               <th className="px-4 py-3 text-left">Aksi</th>
             </tr>
@@ -52,9 +62,16 @@ export default function RombelIndex() {
             {data.map(r => (
               <tr key={r.id_rombel} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-mono text-gray-500">{r.id_rombel}</td>
-                <td className="px-4 py-3 font-medium text-gray-800">{r.nama_rombel}</td>
+                <td className="px-4 py-3 font-medium text-gray-800">
+                  {r.nama_rombel}
+                  {r.is_pkl && <span className="ml-2 bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs font-semibold">PKL</span>}
+                </td>
                 <td className="px-4 py-3"><span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs">Kelas {r.tingkat}</span></td>
                 <td className="px-4 py-3 text-gray-600">{r.jurusan}</td>
+                <td className="px-4 py-3 text-center">
+                  <input type="checkbox" checked={!!r.is_pkl} onChange={() => togglePkl(r)}
+                    title="Tandai rombel sedang PKL" className="w-4 h-4 accent-amber-600 cursor-pointer" />
+                </td>
                 <td className="px-4 py-3"><span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">{r.jumlah_kontrak} kontrak</span></td>
                 <td className="px-4 py-3 flex gap-2">
                   <Link to={`/rombel/${r.id_rombel}/edit`} className="text-blue-600 hover:underline">Edit</Link>
@@ -62,7 +79,7 @@ export default function RombelIndex() {
                 </td>
               </tr>
             ))}
-            {data.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-gray-400">Tidak ada data</td></tr>}
+            {data.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-gray-400">Tidak ada data</td></tr>}
           </tbody>
         </table>
       </div>

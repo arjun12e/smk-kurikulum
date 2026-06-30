@@ -13,6 +13,7 @@ export default function GuruIndex() {
   const [data, setData] = useState([]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+  const [maxJam, setMaxJam] = useState(null);
 
   const load = () => {
     const params = {};
@@ -22,6 +23,11 @@ export default function GuruIndex() {
   };
 
   useEffect(() => { load(); }, [search, status]);
+  useEffect(() => {
+    api.get('/settings').then(r => setMaxJam(r.data?.max_jam_mengajar ?? null)).catch(() => setMaxJam(null));
+  }, []);
+
+  const guruLewatBatas = maxJam ? data.filter(g => (g.total_jam_mengajar || 0) > maxJam) : [];
 
   const hapus = async id => {
     if (!confirm('Hapus guru ini?')) return;
@@ -42,6 +48,13 @@ export default function GuruIndex() {
           + Tambah Guru
         </Link>
       </div>
+
+      {guruLewatBatas.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm text-amber-700">
+          ⚠️ <strong>{guruLewatBatas.length} guru melebihi batas {maxJam} JP/minggu</strong> (aturan di Settings):{' '}
+          {guruLewatBatas.map(g => `${g.nama_guru} (${g.total_jam_mengajar} JP)`).join(', ')}
+        </div>
+      )}
 
       <div className="bg-white rounded-xl shadow-sm p-4 mb-4 flex gap-3">
         <input
@@ -86,8 +99,11 @@ export default function GuruIndex() {
                 </td>
                 <td className="px-4 py-3 text-gray-600">{Array.isArray(guru.jenis_guru) ? guru.jenis_guru.join(' & ') : guru.jenis_guru}</td>
                 <td className="px-4 py-3 text-center">
-                  <span className="font-semibold text-gray-800">{guru.total_jam_mengajar ?? '-'}</span>
+                  <span className={`font-semibold ${maxJam && (guru.total_jam_mengajar || 0) > maxJam ? 'text-red-600' : 'text-gray-800'}`}>{guru.total_jam_mengajar ?? '-'}</span>
                   <span className="text-xs text-gray-400 ml-1">JP</span>
+                  {maxJam && (guru.total_jam_mengajar || 0) > maxJam && (
+                    <span title={`Melebihi batas ${maxJam} JP/minggu`} className="ml-1">⚠️</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 flex gap-2">
                   <Link to={`/guru/${guru.id_guru}/edit`} className="text-blue-600 hover:underline">Edit</Link>

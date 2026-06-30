@@ -5,10 +5,13 @@ const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: '📊' },
   { to: '/guru', label: 'Guru', icon: '👨‍🏫' },
   { to: '/mata-pelajaran', label: 'Mata Pelajaran', icon: '📚' },
+  { to: '/jurusan', label: 'Jurusan', icon: '🏢' },
   { to: '/rombel', label: 'Rombel', icon: '🏫' },
   { to: '/ruangan', label: 'Ruangan', icon: '🚪' },
   { to: '/kontrak-mengajar', label: 'Kontrak Mengajar', icon: '📋' },
   { to: '/jadwal', label: 'Jadwal Optimal', icon: '📅' },
+  { to: '/jadwal/kalender-guru', label: 'Kalender Guru', icon: '🗓️' },
+  { to: '/settings', label: 'Pengaturan', icon: '⚙️' },
 ];
 
 export default function Layout({ children }) {

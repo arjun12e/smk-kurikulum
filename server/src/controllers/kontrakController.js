@@ -22,14 +22,20 @@ async function index(req, res) {
     order: [['id_guru', 'ASC']],
   });
 
-  // Warning: guru dengan total JP > 24 per minggu
+  // Patokan kontrak mengajar = JP milik guru itu sendiri (Guru.total_jam_mengajar).
+  // Total JP terkontrak tiap guru di SELURUH kontrak (abaikan filter agar peringatan akurat).
+  const semuaKontrak = await KontrakMengajar.findAll({ include: [{ model: Guru }] });
   const jpPerGuru = {};
-  data.forEach(k => {
+  const namaGuru = {};
+  const batasGuru = {};
+  semuaKontrak.forEach(k => {
     jpPerGuru[k.id_guru] = (jpPerGuru[k.id_guru] || 0) + k.jumlah_jp;
+    namaGuru[k.id_guru] = k.Guru?.nama_guru || k.id_guru;
+    batasGuru[k.id_guru] = k.Guru?.total_jam_mengajar || 0;
   });
   const warnings = Object.entries(jpPerGuru)
-    .filter(([, jp]) => jp > 24)
-    .map(([id_guru, total_jp]) => ({ id_guru, total_jp }));
+    .filter(([id_guru, jp]) => batasGuru[id_guru] > 0 && jp > batasGuru[id_guru])
+    .map(([id_guru, total_jp]) => ({ id_guru, nama_guru: namaGuru[id_guru], total_jp, batas: batasGuru[id_guru] }));
 
   res.json({ data, warnings });
 }
@@ -43,30 +49,63 @@ async function show(req, res) {
 }
 
 async function store(req, res) {
-  const { id_guru, id_mapel, id_rombel, jumlah_jp, max_jam_harian, preferensi_hari } = req.body;
+  // id_rombel sekarang bisa berupa Array: ['RU023', 'RU024']
+  const { id_guru, id_mapel, id_rombel, jumlah_jp, max_jam_harian, preferensi_hari, is_pkl } = req.body;
 
   if (!id_guru || !id_mapel || !id_rombel || !jumlah_jp) {
     return res.status(400).json({ message: 'Field id_guru, id_mapel, id_rombel, jumlah_jp wajib diisi' });
   }
 
-  const duplikat = await KontrakMengajar.findOne({ where: { id_guru, id_mapel, id_rombel } });
-  if (duplikat) return res.status(422).json({ message: 'Kontrak mengajar duplikat untuk kombinasi guru-mapel-rombel ini' });
+  try {
+    // 1. Pastikan id_rombel diproses sebagai Array (antisipasi jika front-end mengirim string tunggal)
+    const rombelArray = Array.isArray(id_rombel) ? id_rombel : [id_rombel];
+    const kontrakBaruData = [];
 
-  const kontrak = await KontrakMengajar.create({
-    id_guru, id_mapel, id_rombel,
-    jumlah_jp,
-    max_jam_harian: max_jam_harian || 6,
-    preferensi_hari: preferensi_hari || { Senin: 3, Selasa: 3, Rabu: 3, Kamis: 3, Jumat: 3, Sabtu: 3 },
-  });
-  res.status(201).json(kontrak);
+    // 2. Looping setiap id_rombel yang dipilih
+    for (const rombelId of rombelArray) {
+      // Cek duplikat untuk kombinasi ini
+      const duplikat = await KontrakMengajar.findOne({ 
+        where: { id_guru, id_mapel, id_rombel: rombelId } 
+      });
+
+      // Jika tidak duplikat, masukkan ke list antrean simpan
+      if (!duplikat) {
+        kontrakBaruData.push({
+          id_guru,
+          id_mapel,
+          id_rombel: rombelId,
+          jumlah_jp,
+          max_jam_harian: max_jam_harian || 6,
+          is_pkl: is_pkl || false,
+          preferensi_hari: preferensi_hari || { Senin: 3, Selasa: 3, Rabu: 3, Kamis: 3, Jumat: 3, Sabtu: 3 },
+        });
+      }
+    }
+
+    if (kontrakBaruData.length === 0) {
+      return res.status(422).json({ message: 'Semua rombel yang dipilih sudah memiliki kontrak ini (Duplikat)' });
+    }
+
+    // 3. Simpan semua data sekaligus ke database menggunakan bulkCreate
+    const kontrakTerbuat = await KontrakMengajar.bulkCreate(kontrakBaruData);
+    
+    res.status(201).json({ 
+      message: `${kontrakTerbuat.length} kontrak mengajar berhasil ditambahkan`, 
+      data: kontrakTerbuat 
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Terjadi kesalahan pada server saat menyimpan kontrak' });
+  }
 }
 
 async function update(req, res) {
   const kontrak = await KontrakMengajar.findByPk(req.params.id);
   if (!kontrak) return res.status(404).json({ message: 'Kontrak tidak ditemukan' });
 
-  const { jumlah_jp, max_jam_harian, preferensi_hari, id_mapel, id_rombel, id_guru } = req.body;
-  await kontrak.update({ jumlah_jp, max_jam_harian, preferensi_hari, id_mapel, id_rombel, id_guru });
+  const { jumlah_jp, max_jam_harian, preferensi_hari, id_mapel, id_rombel, id_guru, is_pkl } = req.body;
+  await kontrak.update({ jumlah_jp, max_jam_harian, preferensi_hari, id_mapel, id_rombel, id_guru, is_pkl });
   res.json(kontrak);
 }
 
