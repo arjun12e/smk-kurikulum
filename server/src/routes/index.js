@@ -73,6 +73,9 @@ router.post('/jadwal/generate', ...admin, jadwalController.generate);
 router.get('/jadwal/status', ...admin, jadwalController.status);
 router.get('/jadwal/insight', ...admin, jadwalController.insight);
 router.get('/jadwal/ruangan-map', ...admin, jadwalController.ruanganMap);
+router.put('/jadwal/pindah-blok', ...admin, jadwalController.pindahBlok);
+router.put('/jadwal/:id/pindah', ...admin, jadwalController.pindah);
+router.delete('/jadwal/:id', ...admin, jadwalController.hapusSel);
 
 // Dashboard stats
 router.get('/dashboard', ...admin, async (req, res) => {

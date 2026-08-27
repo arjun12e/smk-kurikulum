@@ -1,4 +1,4 @@
-const { Setting } = require('../models');
+﻿const { Setting } = require('../models');
 
 async function getSettings(req, res) {
   let settings = await Setting.findByPk(1);
@@ -8,9 +8,9 @@ async function getSettings(req, res) {
     settings = await Setting.create({
       id_setting: 1,
       max_jam_mengajar: 24,
-      jatah_mapel_x: 14,
-      jatah_mapel_xi: 14,
-      jatah_mapel_xii: 14,
+      jatah_jp_x: 50,
+      jatah_jp_xi: 50,
+      jatah_jp_xii: 50,
       fitur_pkl_aktif: false,
       mode_kurikulum: 'dua_sesi',
     });
@@ -20,10 +20,10 @@ async function getSettings(req, res) {
 }
 
 // Field waktu yang boleh diperbarui dari Settings
-const WAKTU_FIELDS = ['jp_menit', 'istirahat_menit', 'jam_mulai_pagi', 'jam_mulai_siang', 'istirahat_setelah_dua_sesi', 'istirahat_setelah_satu_sesi'];
+const WAKTU_FIELDS = ['jp_menit', 'istirahat_menit', 'jam_mulai_pagi', 'jam_mulai_siang', 'istirahat_setelah_dua_sesi', 'istirahat_setelah_satu_sesi', 'jadwal_khusus', 'jumlah_jp', 'istirahat_list'];
 
 async function updateSettings(req, res) {
-  const { max_jam_mengajar, jatah_mapel_x, jatah_mapel_xi, jatah_mapel_xii, fitur_pkl_aktif, mode_kurikulum } = req.body;
+  const { max_jam_mengajar, jatah_jp_x, jatah_jp_xi, jatah_jp_xii, fitur_pkl_aktif, mode_kurikulum } = req.body;
 
   // Ambil field waktu yang ada di body (hanya yang dikirim)
   const waktuUpdate = {};
@@ -35,9 +35,9 @@ async function updateSettings(req, res) {
     settings = await Setting.create({
       id_setting: 1,
       max_jam_mengajar: max_jam_mengajar || 24,
-      jatah_mapel_x: jatah_mapel_x || 14,
-      jatah_mapel_xi: jatah_mapel_xi || 14,
-      jatah_mapel_xii: jatah_mapel_xii || 14,
+      jatah_jp_x: jatah_jp_x || 50,
+      jatah_jp_xi: jatah_jp_xi || 50,
+      jatah_jp_xii: jatah_jp_xii || 50,
       fitur_pkl_aktif: fitur_pkl_aktif || false,
       mode_kurikulum: mode_kurikulum || 'dua_sesi',
       ...waktuUpdate,
@@ -45,9 +45,9 @@ async function updateSettings(req, res) {
   } else {
     await settings.update({
       max_jam_mengajar: max_jam_mengajar !== undefined ? max_jam_mengajar : settings.max_jam_mengajar,
-      jatah_mapel_x: jatah_mapel_x !== undefined ? jatah_mapel_x : settings.jatah_mapel_x,
-      jatah_mapel_xi: jatah_mapel_xi !== undefined ? jatah_mapel_xi : settings.jatah_mapel_xi,
-      jatah_mapel_xii: jatah_mapel_xii !== undefined ? jatah_mapel_xii : settings.jatah_mapel_xii,
+      jatah_jp_x: jatah_jp_x !== undefined ? jatah_jp_x : settings.jatah_jp_x,
+      jatah_jp_xi: jatah_jp_xi !== undefined ? jatah_jp_xi : settings.jatah_jp_xi,
+      jatah_jp_xii: jatah_jp_xii !== undefined ? jatah_jp_xii : settings.jatah_jp_xii,
       fitur_pkl_aktif: fitur_pkl_aktif !== undefined ? fitur_pkl_aktif : settings.fitur_pkl_aktif,
       mode_kurikulum: mode_kurikulum !== undefined ? mode_kurikulum : settings.mode_kurikulum,
       ...waktuUpdate,
@@ -58,3 +58,4 @@ async function updateSettings(req, res) {
 }
 
 module.exports = { getSettings, updateSettings };
+

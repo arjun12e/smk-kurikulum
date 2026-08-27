@@ -11,6 +11,7 @@ const MAPEL_BADGE = { Produktif: 'bg-red-100 text-red-700', Umum: 'bg-blue-100 t
 export default function KontrakIndex() {
   const [data, setData] = useState([]);
   const [warnings, setWarnings] = useState([]);
+  const [warningsRombel, setWarningsRombel] = useState([]);
   const [guruList, setGuruList] = useState([]);
   const [rombelList, setRombelList] = useState([]);
   const [filter, setFilter] = useState({ id_guru: '', id_rombel: '', status_kepegawaian: '' });
@@ -23,6 +24,7 @@ export default function KontrakIndex() {
     api.get('/kontrak-mengajar', { params }).then(res => {
       setData(res.data.data);
       setWarnings(res.data.warnings);
+      setWarningsRombel(res.data.warningsRombel || []);
     });
   };
 
@@ -42,6 +44,25 @@ export default function KontrakIndex() {
       load();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Gagal menghapus');
+    }
+  };
+
+  const hapusSemuanya = async () => {
+    if (data.length === 0) {
+      toast.error('Tidak ada kontrak untuk dihapus');
+      return;
+    }
+    
+    const confirm_text = `Hapus semua ${data.length} kontrak yang ditampilkan? Tindakan ini tidak dapat dibatalkan.`;
+    if (!confirm(confirm_text)) return;
+    
+    try {
+      const ids = data.map(k => k.id_kontrak);
+      await Promise.all(ids.map(id => api.delete(`/kontrak-mengajar/${id}`)));
+      toast.success(`${ids.length} kontrak berhasil dihapus`);
+      load();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Gagal menghapus beberapa kontrak');
     }
   };
 
@@ -66,15 +87,31 @@ export default function KontrakIndex() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-800">Kontrak Mengajar</h2>
-        <Link to="/kontrak-mengajar/tambah" className="bg-[#1e3a5f] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#162d4a]">
-          + Tambah Kontrak
-        </Link>
+        <div className="flex gap-2">
+          {data.length > 0 && (
+            <button 
+              onClick={hapusSemuanya}
+              className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-red-700">
+              Hapus Semua ({data.length})
+            </button>
+          )}
+          <Link to="/kontrak-mengajar/tambah" className="bg-[#1e3a5f] text-white px-4 py-2 rounded-lg text-sm hover:bg-[#162d4a]">
+            + Tambah Kontrak
+          </Link>
+        </div>
       </div>
 
       {warnings.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4 text-sm text-amber-700">
           ⚠️ <strong>Peringatan — melebihi jatah JP guru:</strong>{' '}
           {warnings.map(w => `${w.nama_guru || w.id_guru} (${w.total_jp}/${w.batas} JP)`).join(', ')}
+        </div>
+      )}
+
+      {warningsRombel.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 mb-4 text-sm text-orange-700">
+          ⚠️ <strong>Rombel melebihi jatah JP per minggu (Settings):</strong>{' '}
+          {warningsRombel.map(w => `${w.nama_rombel} (${w.total_jp}/${w.batas} JP)`).join(', ')}
         </div>
       )}
 

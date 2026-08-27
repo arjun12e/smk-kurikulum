@@ -3,6 +3,25 @@ import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
+const HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const HP = { Senin: 'Sen', Selasa: 'Sel', Rabu: 'Rab', Kamis: 'Kam', Jumat: 'Jum', Sabtu: 'Sab' };
+// Ringkas sesi-per-hari: kelompokkan hari berurutan dengan sesi sama.
+function ringkasSesi(r) {
+  const sh = r.sesi_hari && typeof r.sesi_hari === 'object' ? r.sesi_hari : {};
+  const def = r.sesi || 'Pagi';
+  const perHari = HARI.map(h => sh[h] || def);
+  if (perHari.every(s => s === perHari[0])) return [{ sesi: perHari[0], label: 'Semua' }];
+  const grup = [];
+  HARI.forEach((h, i) => {
+    const s = perHari[i];
+    const last = grup[grup.length - 1];
+    if (last && last.sesi === s) last.hari.push(HP[h]);
+    else grup.push({ sesi: s, hari: [HP[h]] });
+  });
+  return grup.map(g => ({ sesi: g.sesi, label: `${g.hari[0]}${g.hari.length > 1 ? '–' + g.hari[g.hari.length - 1] : ''}` }));
+}
+const SESI_STYLE = { Pagi: 'bg-sky-100 text-sky-700', Siang: 'bg-orange-100 text-orange-700', Libur: 'bg-gray-100 text-gray-500' };
+
 export default function RombelIndex() {
   const [data, setData] = useState([]);
   const [tingkat, setTingkat] = useState('');
@@ -53,6 +72,7 @@ export default function RombelIndex() {
               <th className="px-4 py-3 text-left">Nama Rombel</th>
               <th className="px-4 py-3 text-left">Tingkat</th>
               <th className="px-4 py-3 text-left">Jurusan</th>
+              <th className="px-4 py-3 text-left">Sesi</th>
               <th className="px-4 py-3 text-center">PKL</th>
               <th className="px-4 py-3 text-left">Kontrak</th>
               <th className="px-4 py-3 text-left">Aksi</th>
@@ -68,6 +88,15 @@ export default function RombelIndex() {
                 </td>
                 <td className="px-4 py-3"><span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs">Kelas {r.tingkat}</span></td>
                 <td className="px-4 py-3 text-gray-600">{r.jurusan}</td>
+                <td className="px-4 py-3">
+                  <div className="flex flex-wrap gap-1">
+                    {ringkasSesi(r).map((g, i) => (
+                      <span key={i} className={`px-2 py-0.5 rounded text-xs font-medium ${SESI_STYLE[g.sesi] || SESI_STYLE.Pagi}`}>
+                        {g.sesi}{g.label !== 'Semua' ? ` ${g.label}` : ''}
+                      </span>
+                    ))}
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-center">
                   <input type="checkbox" checked={!!r.is_pkl} onChange={() => togglePkl(r)}
                     title="Tandai rombel sedang PKL" className="w-4 h-4 accent-amber-600 cursor-pointer" />
@@ -79,7 +108,7 @@ export default function RombelIndex() {
                 </td>
               </tr>
             ))}
-            {data.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-gray-400">Tidak ada data</td></tr>}
+            {data.length === 0 && <tr><td colSpan={8} className="text-center py-8 text-gray-400">Tidak ada data</td></tr>}
           </tbody>
         </table>
       </div>

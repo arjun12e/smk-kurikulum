@@ -7,10 +7,10 @@ async function login(req, res) {
   if (!email || !password) return res.status(400).json({ message: 'Email dan password wajib diisi' });
 
   const user = await User.findOne({ where: { email } });
-  if (!user) return res.status(401).json({ message: 'Email atau password salah' });
+  if (!user) return res.status(401).json({ message: 'Email tidak terdaftar', field: 'email' });
 
   const valid = await bcrypt.compare(password, user.password);
-  if (!valid) return res.status(401).json({ message: 'Email atau password salah' });
+  if (!valid) return res.status(401).json({ message: 'Password salah', field: 'password' });
 
   const token = jwt.sign(
     { id: user.id, email: user.email, name: user.name, role: user.role },

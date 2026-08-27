@@ -14,6 +14,8 @@ const COLUMNS = [
   ['mata_pelajaran', 'tingkat', "SET('X','XI','XII') NULL"],
   ['mata_pelajaran', 'jenis_guru', 'VARCHAR(100) NULL'],
   ['rombel', 'is_pkl', 'TINYINT(1) NOT NULL DEFAULT 0'],
+  ['rombel', 'sesi', "ENUM('Pagi','Siang') NOT NULL DEFAULT 'Pagi'"],
+  ['rombel', 'sesi_hari', 'TEXT NULL'],
   ['kontrak_mengajar', 'is_pkl', 'TINYINT(1) NOT NULL DEFAULT 0'],
   ['ruangan', 'id_jurusan', 'VARCHAR(50) NULL'],
   ['ruangan', 'id_mapel_list', 'TEXT NULL'],
@@ -24,6 +26,12 @@ const COLUMNS = [
   ['settings', 'jam_mulai_siang', "VARCHAR(5) NOT NULL DEFAULT '13:00'"],
   ['settings', 'istirahat_setelah_dua_sesi', 'INT NOT NULL DEFAULT 4'],
   ['settings', 'istirahat_setelah_satu_sesi', 'INT NOT NULL DEFAULT 5'],
+  ['settings', 'jatah_jp_x', 'INT NOT NULL DEFAULT 50'],
+  ['settings', 'jatah_jp_xi', 'INT NOT NULL DEFAULT 50'],
+  ['settings', 'jatah_jp_xii', 'INT NOT NULL DEFAULT 50'],
+  ['settings', 'jadwal_khusus', 'TEXT NULL'],
+  ['settings', 'jumlah_jp', 'INT NOT NULL DEFAULT 14'],
+  ['settings', 'istirahat_list', 'TEXT NULL'],
 ];
 
 async function kolomAda(db, table, col) {

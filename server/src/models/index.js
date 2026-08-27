@@ -106,6 +106,20 @@ const Rombel = sequelize.define('Rombel', {
   tingkat: { type: DataTypes.ENUM('X', 'XI', 'XII'), allowNull: false },
   jurusan: { type: DataTypes.STRING(50), allowNull: false },
   is_pkl: { type: DataTypes.BOOLEAN, defaultValue: false, comment: 'Marks if this is a PKL (internship) class' },
+  sesi: { type: DataTypes.ENUM('Pagi', 'Siang'), defaultValue: 'Pagi', comment: 'Sesi default rombel (dipakai bila hari tsb tidak diatur khusus di sesi_hari)' },
+  sesi_hari: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'JSON peta sesi per hari, mis. {"Senin":"Pagi","Kamis":"Siang","Minggu":"Libur"}. Kosong = pakai `sesi` untuk semua hari',
+    get() {
+      const val = this.getDataValue('sesi_hari');
+      if (!val) return {};
+      try { return JSON.parse(val); } catch { return {}; }
+    },
+    set(val) {
+      this.setDataValue('sesi_hari', val && Object.keys(val).length ? JSON.stringify(val) : null);
+    },
+  },
 }, { tableName: 'rombel', timestamps: false });
 
 const Ruangan = sequelize.define('Ruangan', {
@@ -166,14 +180,14 @@ const JadwalOptimal = sequelize.define('JadwalOptimal', {
 const Setting = sequelize.define('Setting', {
   id_setting: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   max_jam_mengajar: { type: DataTypes.INTEGER, defaultValue: 24, comment: 'Maximum teaching hours per week per teacher' },
-  jatah_mapel_x: { type: DataTypes.INTEGER, defaultValue: 14, comment: 'Max subjects quota for class X' },
-  jatah_mapel_xi: { type: DataTypes.INTEGER, defaultValue: 14, comment: 'Max subjects quota for class XI' },
-  jatah_mapel_xii: { type: DataTypes.INTEGER, defaultValue: 14, comment: 'Max subjects quota for class XII' },
+  jatah_jp_x: { type: DataTypes.INTEGER, defaultValue: 50, comment: 'Jatah total JP per minggu per rombel kelas X' },
+  jatah_jp_xi: { type: DataTypes.INTEGER, defaultValue: 50, comment: 'Jatah total JP per minggu per rombel kelas XI' },
+  jatah_jp_xii: { type: DataTypes.INTEGER, defaultValue: 50, comment: 'Jatah total JP per minggu per rombel kelas XII' },
   fitur_pkl_aktif: { type: DataTypes.BOOLEAN, defaultValue: false, comment: 'Enable/disable PKL feature' },
   mode_kurikulum: {
     type: DataTypes.ENUM('satu_sesi', 'dua_sesi'),
     defaultValue: 'dua_sesi',
-    comment: 'satu_sesi: Senin-Jumat 1 sesi (10 JP/hari); dua_sesi: Senin-Sabtu Pagi/Siang',
+    comment: 'satu_sesi: Senin-Sabtu 1 sesi (maks 14 JP/hari); dua_sesi: Senin-Sabtu Pagi/Siang (8 JP/sesi)',
   },
   // Pengaturan waktu untuk kalender akademik
   jp_menit: { type: DataTypes.INTEGER, defaultValue: 40, comment: 'Durasi 1 JP (menit)' },
@@ -182,7 +196,49 @@ const Setting = sequelize.define('Setting', {
   jam_mulai_siang: { type: DataTypes.STRING(5), defaultValue: '13:00', comment: 'Jam mulai sesi Siang (HH:MM)' },
   istirahat_setelah_dua_sesi: { type: DataTypes.INTEGER, defaultValue: 4, comment: 'Istirahat setelah JP ke-? (mode dua sesi)' },
   istirahat_setelah_satu_sesi: { type: DataTypes.INTEGER, defaultValue: 5, comment: 'Istirahat setelah JP ke-? (mode satu sesi)' },
+  jumlah_jp: { type: DataTypes.INTEGER, defaultValue: 14, comment: 'Total JP per hari pada tampilan kalender kontinu' },
+  istirahat_list: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'JSON daftar istirahat bernama: [{setelah:4,label:"MBG",menit:20},...]. Kosong = pakai default',
+    get() {
+      const val = this.getDataValue('istirahat_list');
+      if (!val) return ISTIRAHAT_DEFAULT;
+      try { const a = JSON.parse(val); return Array.isArray(a) ? a : ISTIRAHAT_DEFAULT; } catch { return ISTIRAHAT_DEFAULT; }
+    },
+    set(val) {
+      this.setDataValue('istirahat_list', Array.isArray(val) && val.length ? JSON.stringify(val) : null);
+    },
+  },
+  jadwal_khusus: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    comment: 'JSON profil hari khusus (upacara/sholat jumat): { "Hari-Shift": {aktif,label,jam_mulai,jp_menit,istirahat_menit,istirahat_setelah,max_jp} }',
+    get() {
+      const val = this.getDataValue('jadwal_khusus');
+      if (!val) return JADWAL_KHUSUS_DEFAULT;
+      try { return JSON.parse(val); } catch { return JADWAL_KHUSUS_DEFAULT; }
+    },
+    set(val) {
+      this.setDataValue('jadwal_khusus', val ? JSON.stringify(val) : null);
+    },
+  },
 }, { tableName: 'settings', timestamps: false });
+
+// Daftar istirahat bawaan (mengikuti jadwal SMK Pasundan 2: MBG, Sholat Dzuhur)
+const ISTIRAHAT_DEFAULT = [
+  { setelah: 4, label: 'MBG', menit: 20 },
+  { setelah: 4, label: 'Istirahat', menit: 20 },
+  { setelah: 8, label: 'Sholat Dzuhur Berjamaah', menit: 30 },
+  { setelah: 12, label: 'Istirahat', menit: 20 },
+  { setelah: 12, label: 'MBG', menit: 10 },
+];
+
+// Profil bawaan hari khusus (bisa diubah lewat Settings)
+const JADWAL_KHUSUS_DEFAULT = {
+  'Senin-Pagi': { aktif: true, label: 'Upacara', jam_mulai: '08:00', jp_menit: 30, istirahat_menit: 30, istirahat_setelah: 4, max_jp: 7 },
+  'Jumat-Siang': { aktif: true, label: 'Sholat Jumat', jam_mulai: '13:00', jp_menit: 30, istirahat_menit: 35, istirahat_setelah: 4, max_jp: 7 },
+};
 
 // Associations
 KontrakMengajar.belongsTo(Guru, { foreignKey: 'id_guru' });

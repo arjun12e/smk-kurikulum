@@ -1,16 +1,22 @@
 import { useEffect, useState, useMemo, Fragment } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
-import { rentangWaktu, istirahatSetelah, rentangIstirahat, buildWaktuConfig } from '../../utils/jadwalWaktu';
-import { exportGuruExcel } from '../../utils/exportJadwal';
+import { rentangWaktu, istirahatSetelah, rentangIstirahat, buildWaktuConfig, profilKhusus } from '../../utils/jadwalWaktu';
+import { exportGuruResmiExcel } from '../../utils/exportJadwalResmi';
 
 const HARI_ORDER = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
 function cellStyle(j) {
   const pkl = j.KontrakMengajar?.is_pkl || j.Rombel?.is_pkl;
-  if (!j.id_ruangan && pkl) return { warna: 'bg-amber-100 text-amber-800', ket: 'PKL' };
-  if (!j.id_ruangan) return { warna: 'bg-purple-100 text-purple-800', ket: 'Tanpa ruang' };
-  return { warna: 'bg-blue-50 text-blue-800', ket: j.Ruangan?.nama_ruangan || '' };
+  let st;
+  if (!j.id_ruangan && pkl) st = { warna: 'bg-amber-100 text-amber-800', ket: 'PKL' };
+  else if (!j.id_ruangan) st = { warna: 'bg-green-100 text-green-800', ket: 'Lapangan' };
+  else st = { warna: 'bg-blue-50 text-blue-800', ket: j.Ruangan?.nama_ruangan || '' };
+  if (j.bentrok?.length) {
+    st.warna += ' ring-2 ring-red-500';
+    st.ket = `⚠ ${j.bentrok.join(',')} · ${st.ket}`;
+  }
+  return st;
 }
 
 export default function KalenderGuru() {
@@ -50,11 +56,18 @@ export default function KalenderGuru() {
   const totalJp = jadwalGuru.length;
   const guru = guruList.find(g => g.id_guru === idGuru);
 
-  const exportExcel = (guruId) => {
+  const exportExcel = async (guruId) => {
     if (jadwal.length === 0) return toast.error('Belum ada jadwal untuk diexport');
-    const ok = exportGuruExcel(jadwal, guruList, settings, { guruId });
-    if (!ok) toast.error('Tidak ada data jadwal');
-    else toast.success('Excel berhasil diunduh');
+    const t = toast.loading('Menyusun file Excel…');
+    try {
+      const ok = await exportGuruResmiExcel(jadwal, guruList, settings, { guruId });
+      toast.dismiss(t);
+      if (!ok) toast.error('Tidak ada data jadwal');
+      else toast.success('Excel format resmi berhasil diunduh');
+    } catch (err) {
+      toast.dismiss(t);
+      toast.error(`Gagal membuat Excel: ${err.message}`);
+    }
   };
 
   return (
@@ -88,6 +101,15 @@ export default function KalenderGuru() {
         </div>
       </div>
 
+      {Object.values(waktuCfg.khusus || {}).some(p => p?.aktif) && (
+        <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
+          🗓 <strong>Jadwal khusus:</strong>{' '}
+          {Object.entries(waktuCfg.khusus).filter(([, p]) => p?.aktif)
+            .map(([k, p]) => `${k.replace('-', ' ')}${p.label ? ` (${p.label})` : ''} — sampai JP ke-${p.max_jp}`)
+            .join(' · ')}
+        </div>
+      )}
+
       {!idGuru ? (
         <div className="bg-white rounded-xl p-8 text-center text-gray-400">Pilih guru untuk melihat kalendernya.</div>
       ) : jadwal.length === 0 ? (
@@ -114,12 +136,23 @@ export default function KalenderGuru() {
                         </td>
                         <td className="px-2 py-1.5 text-center text-gray-400 whitespace-nowrap">{w.mulai}–{w.selesai}</td>
                         {hariAda.map(hari => {
+                          const pk = profilKhusus(waktuCfg, hari, shift);
+                          if (pk && slot > (pk.max_jp || 99)) {
+                            return <td key={hari} className="px-1 py-1 bg-gray-50 text-center text-gray-300"
+                              title={`${hari} ${shift} hanya ${pk.max_jp} JP (${pk.label})`}>—</td>;
+                          }
                           const j = at(hari, shift, slot);
-                          if (!j) return <td key={hari} className="px-1 py-1 align-top" />;
+                          const wKhusus = pk ? rentangWaktu(mode, shift, slot, waktuCfg, hari) : null;
+                          if (!j) return (
+                            <td key={hari} className="px-1 py-1 align-top">
+                              {wKhusus && <div className="text-[9px] text-gray-300 text-center">{wKhusus.mulai}–{wKhusus.selesai}</div>}
+                            </td>
+                          );
                           const st = cellStyle(j);
                           return (
                             <td key={hari} className="px-1 py-1 align-top">
                               <div className={`rounded p-1 ${st.warna}`}>
+                                {wKhusus && <div className="text-[9px] font-semibold opacity-70">{wKhusus.mulai}–{wKhusus.selesai}</div>}
                                 <div className="font-medium truncate">{j.KontrakMengajar?.MataPelajaran?.nama_mapel}</div>
                                 <div className="opacity-70 truncate">{j.Rombel?.nama_rombel} · {st.ket}</div>
                               </div>

@@ -11,7 +11,11 @@ api.interceptors.request.use(config => {
 api.interceptors.response.use(
   res => res,
   err => {
-    if (err.response?.status === 401) {
+    // 401 dari endpoint login = kredensial salah → biarkan halaman Login yang
+    // menampilkan pesannya. Jangan reload, karena reload menghapus notifikasi.
+    const dariLogin = err.config?.url?.includes('/auth/login');
+    if (err.response?.status === 401 && !dariLogin) {
+      // 401 dari endpoint lain = sesi kedaluwarsa → keluar & kembali ke Login
       localStorage.removeItem('token');
       window.location.href = '/login';
     }

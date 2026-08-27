@@ -1,4 +1,4 @@
-const { KontrakMengajar, Guru, MataPelajaran, Rombel, sequelize } = require('../models');
+const { KontrakMengajar, Guru, MataPelajaran, Rombel, Setting, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
 const BOBOT_KASTA = { PNS: 3, GTY: 2, GTT: 1 };
@@ -24,7 +24,17 @@ async function index(req, res) {
 
   // Patokan kontrak mengajar = JP milik guru itu sendiri (Guru.total_jam_mengajar).
   // Total JP terkontrak tiap guru di SELURUH kontrak (abaikan filter agar peringatan akurat).
-  const semuaKontrak = await KontrakMengajar.findAll({ include: [{ model: Guru }] });
+  const semuaKontrak = await KontrakMengajar.findAll({ include: [{ model: Guru }, { model: Rombel }, { model: MataPelajaran }] });
+
+  // JP efektif DI SEKOLAH untuk akumulasi jatah rombel: mapel yang seluruh
+  // alokasinya di luar (total JP <= 0, mis. PJOK) tidak memakan jatah.
+  const efektifJp = (k) => {
+    const m = k.MataPelajaran;
+    const alokasi = m?.alokasi_per_minggu || 0;
+    const diluar = m?.jp_diluar || 0;
+    if (diluar > 0 && alokasi - diluar <= 0) return 0;
+    return k.jumlah_jp || 0;
+  };
   const jpPerGuru = {};
   const namaGuru = {};
   const batasGuru = {};
@@ -37,7 +47,28 @@ async function index(req, res) {
     .filter(([id_guru, jp]) => batasGuru[id_guru] > 0 && jp > batasGuru[id_guru])
     .map(([id_guru, total_jp]) => ({ id_guru, nama_guru: namaGuru[id_guru], total_jp, batas: batasGuru[id_guru] }));
 
-  res.json({ data, warnings });
+  // Jatah JP per tingkat (Settings) — total JP terkontrak per rombel tidak boleh melebihinya
+  const setting = await Setting.findByPk(1);
+  const jatahJp = { X: setting?.jatah_jp_x || 0, XI: setting?.jatah_jp_xi || 0, XII: setting?.jatah_jp_xii || 0 };
+  const jpPerRombel = {};
+  const infoRombel = {};
+  semuaKontrak.forEach(k => {
+    jpPerRombel[k.id_rombel] = (jpPerRombel[k.id_rombel] || 0) + efektifJp(k);
+    infoRombel[k.id_rombel] = { nama: k.Rombel?.nama_rombel || k.id_rombel, tingkat: k.Rombel?.tingkat };
+  });
+  const warningsRombel = Object.entries(jpPerRombel)
+    .filter(([rid, jp]) => {
+      const batas = jatahJp[infoRombel[rid]?.tingkat] || 0;
+      return batas > 0 && jp > batas;
+    })
+    .map(([rid, total_jp]) => ({
+      id_rombel: rid,
+      nama_rombel: infoRombel[rid].nama,
+      total_jp,
+      batas: jatahJp[infoRombel[rid].tingkat],
+    }));
+
+  res.json({ data, warnings, warningsRombel });
 }
 
 async function show(req, res) {

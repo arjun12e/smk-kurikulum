@@ -21,6 +21,7 @@ export default function KontrakForm() {
   const [rombelList, setRombelList] = useState([]);
   const [filteredMapelList, setFilteredMapelList] = useState([]);
   const [kontrakGuru, setKontrakGuru] = useState([]);
+  const [kontrakSemua, setKontrakSemua] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showGuruModal, setShowGuruModal] = useState(false);
   const [selectedTingkat, setSelectedTingkat] = useState('XI');
@@ -35,13 +36,15 @@ export default function KontrakForm() {
       api.get('/mata-pelajaran'),
       api.get('/rombel'),
       api.get('/settings'),
-      api.get('/jurusan')
-    ]).then(([g, m, r, s, j]) => {
+      api.get('/jurusan'),
+      api.get('/kontrak-mengajar')
+    ]).then(([g, m, r, s, j, k]) => {
       setGuruList(g.data);
       setMapelList(m.data);
       setRombelList(r.data);
       setSettings(s.data);
       setJurusanList(j.data || []);
+      setKontrakSemua(k.data?.data || []);
 
       // Jika dalam mode EDIT, ambil data kontrak SETELAH master data siap
       if (isEdit) {
@@ -142,6 +145,50 @@ export default function KontrakForm() {
   );
   const totalJpTerkontrak = [...rombelTerkontrak.values()].reduce((s, jp) => s + (jp || 0), 0);
 
+  // Semua kontrak selain yang sedang diedit
+  const kontrakLain = kontrakSemua.filter(k => !isEdit || String(k.id_kontrak) !== String(id));
+
+  // JP efektif DI SEKOLAH untuk jatah: mapel yang seluruh alokasinya di luar
+  // (total JP <= 0, mis. PJOK) tidak memakan jatah rombel.
+  const mapelFullDiluar = (m) => {
+    const alokasi = m?.alokasi_per_minggu || 0;
+    const diluar = m?.jp_diluar || 0;
+    return diluar > 0 && alokasi - diluar <= 0;
+  };
+  const efektifJp = (k) => (mapelFullDiluar(k.MataPelajaran) ? 0 : (k.jumlah_jp || 0));
+
+  // Total JP efektif terkontrak per rombel untuk cek jatah JP per tingkat
+  const jpPerRombel = {};
+  kontrakLain.forEach(k => { jpPerRombel[k.id_rombel] = (jpPerRombel[k.id_rombel] || 0) + efektifJp(k); });
+  const jatahJpTingkat = (t) => Number(settings?.[`jatah_jp_${String(t || '').toLowerCase()}`] || 0);
+  // JP kontrak baru juga efektif 0 bila mapel terpilih full di luar
+  const mapelFormObj = mapelList.find(m => m.id_mapel === form.id_mapel);
+  const jpBaruEfektif = mapelFullDiluar(mapelFormObj) ? 0 : (parseInt(form.jumlah_jp) || 0);
+
+  // ATURAN BARU: mapel boleh dikontrak beberapa guru untuk rombel yang sama,
+  // SELAMA total JP mapel belum habis. Terkunci hanya bila akumulasi JP (semua guru)
+  // >= total JP mapel (total_jumlah_jp = alokasi - jp_diluar).
+  const totalMapelJp = mapelFormObj
+    ? (mapelFormObj.total_jumlah_jp ?? ((mapelFormObj.alokasi_per_minggu || 0) - (mapelFormObj.jp_diluar || 0)))
+    : 0;
+  const jpMapelRombel = {};
+  kontrakLain.filter(k => k.id_mapel === form.id_mapel).forEach(k => {
+    jpMapelRombel[k.id_rombel] = (jpMapelRombel[k.id_rombel] || 0) + (k.jumlah_jp || 0);
+  });
+  const infoMapelRombel = (rid) => {
+    const terisi = jpMapelRombel[rid] || 0;
+    return { terisi, total: totalMapelJp, penuh: totalMapelJp > 0 && terisi >= totalMapelJp };
+  };
+  const rombelPenuh = (rid) => infoMapelRombel(rid).penuh;
+  const rombelLewatJatah = (Array.isArray(form.id_rombel) ? form.id_rombel : []).map(rid => {
+    const r = rombelList.find(x => x.id_rombel === rid);
+    if (!r) return null;
+    const jatah = jatahJpTingkat(r.tingkat);
+    if (!jatah) return null;
+    const proyeksi = (jpPerRombel[rid] || 0) + jpBaruEfektif;
+    return proyeksi > jatah ? { nama: r.nama_rombel, proyeksi, jatah } : null;
+  }).filter(Boolean);
+
   // Proyeksi beban JP guru bila kontrak ini disimpan.
   // Patokan = jatah JP guru tsb (Guru.total_jam_mengajar).
   const guruDipilih = guruList.find(g => g.id_guru === form.id_guru);
@@ -160,8 +207,8 @@ export default function KontrakForm() {
   };
 
   const handleRombelSelect = (id_rombel) => {
-  // Cegah memilih rombel yang sudah dikontrak (akan jadi duplikat)
-  if (rombelTerkontrak.has(id_rombel)) return;
+  // Cegah memilih rombel yang sudah dikontrak guru ini (duplikat) atau JP mapelnya sudah penuh
+  if (rombelTerkontrak.has(id_rombel) || rombelPenuh(id_rombel)) return;
   let currentRombel = [...form.id_rombel];
 
   if (currentRombel.includes(id_rombel)) {
@@ -178,10 +225,10 @@ export default function KontrakForm() {
 // Fungsi Pintas untuk memilih semua rombel di tingkat yang aktif
 const handleSelectAllRombel = () => {
   const rombelDiTingkatIni = groupedRombel[selectedTingkat] || [];
-  // Abaikan rombel yang sudah dikontrak (tidak ikut dipilih massal)
+  // Abaikan rombel yang sudah dikontrak / terisi guru lain (tidak ikut dipilih massal)
   const idRombelDiTingkatIni = rombelDiTingkatIni
     .map(r => r.id_rombel)
-    .filter(id => !rombelTerkontrak.has(id));
+    .filter(rid => !rombelTerkontrak.has(rid) && !rombelPenuh(rid));
 
   // Cek apakah semua rombel di tingkat ini sudah terpilih semuanya
   const apakahSudahSemua = idRombelDiTingkatIni.every(id => form.id_rombel.includes(id));
@@ -276,7 +323,10 @@ const handleSelectAllRombel = () => {
           <select value={form.id_mapel} onChange={e => { const selectedId = e.target.value; set('id_mapel', selectedId);
             const mapelTerpilih = filteredMapelList.find(m => m.id_mapel === selectedId);
             if (mapelTerpilih) {
-            set('jumlah_jp', mapelTerpilih.alokasi_per_minggu || 2);}}} 
+            // Isi otomatis dengan TOTAL JP (alokasi - JP diluar) = JP yang benar-benar butuh ruangan.
+            // JP diluar dijadwalkan otomatis oleh algoritma sebagai blok tanpa ruangan.
+            const totalJp = mapelTerpilih.total_jumlah_jp ?? ((mapelTerpilih.alokasi_per_minggu || 0) - (mapelTerpilih.jp_diluar || 0));
+            set('jumlah_jp', totalJp > 0 ? totalJp : 2);}}}
             required className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <option value="">Pilih mapel...</option>
             {filteredMapelList.map(m => <option key={m.id_mapel} value={m.id_mapel}>{m.nama_mapel}</option>)}
@@ -288,6 +338,11 @@ const handleSelectAllRombel = () => {
         {form.id_mapel && rombelTerkontrak.size > 0 && (
           <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-700">
             ✓ Guru ini sudah mengontrak <strong>{rombelTerkontrak.size} rombel</strong> ({totalJpTerkontrak} JP total) untuk mapel ini — ditandai hijau & tidak bisa dipilih lagi.
+          </div>
+        )}
+        {form.id_mapel && totalMapelJp > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-xs text-blue-700">
+            ℹ️ Total JP mapel ini <strong>{totalMapelJp} JP</strong>. Rombel boleh dikontrak <strong>beberapa guru</strong> sampai JP-nya habis — yang sudah <strong>penuh</strong> ditandai merah, yang <strong>terisi sebagian</strong> masih bisa ditambah.
           </div>
         )}
 
@@ -335,27 +390,47 @@ const handleSelectAllRombel = () => {
             // Rombel yang sudah dikontrak guru ini untuk mapel terpilih
             const sudahDikontrak = rombelTerkontrak.has(r.id_rombel);
             const jpSudah = rombelTerkontrak.get(r.id_rombel);
+            // Status JP mapel di rombel ini (semua guru)
+            const im = infoMapelRombel(r.id_rombel);
+            const penuh = !sudahDikontrak && im.penuh;                       // JP habis → terkunci
+            const sebagian = !sudahDikontrak && !penuh && im.terisi > 0;     // terisi sebagian → boleh tambah
 
             return (
               <button
                 key={r.id_rombel}
                 type="button"
-                disabled={sudahDikontrak}
-                title={sudahDikontrak ? `Guru ini sudah punya kontrak untuk rombel & mapel ini (${jpSudah} JP)` : undefined}
+                disabled={sudahDikontrak || penuh}
+                title={sudahDikontrak
+                  ? `Guru ini sudah punya kontrak untuk rombel & mapel ini (${jpSudah} JP)`
+                  : penuh
+                  ? `JP mapel sudah penuh (${im.terisi}/${im.total} JP)`
+                  : sebagian
+                  ? `Terisi ${im.terisi}/${im.total} JP oleh guru lain — masih bisa ditambah`
+                  : undefined}
                 onClick={() => handleRombelSelect(r.id_rombel)}
                 className={`p-3 rounded-lg text-sm font-medium transition text-left flex justify-between items-center ${
                   sudahDikontrak
                     ? 'bg-green-50 text-green-700 border-2 border-green-300 cursor-not-allowed'
+                    : penuh
+                    ? 'bg-red-50 text-red-600 border-2 border-red-200 cursor-not-allowed'
                     : isSelected
                     ? 'bg-blue-600 text-white border-2 border-blue-700 shadow-sm'
+                    : sebagian
+                    ? 'bg-yellow-50 text-yellow-800 border-2 border-yellow-300 hover:bg-yellow-100'
                     : 'bg-gray-100 text-gray-700 border-2 border-gray-200 hover:bg-gray-200'
                 }`}
               >
-                <span className="flex items-center gap-1.5">
-                  {r.nama_rombel}
-                  {r.is_pkl && <span className={`text-[10px] font-bold px-1 py-0.5 rounded ${isSelected && !sudahDikontrak ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'}`}>PKL</span>}
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="truncate">{r.nama_rombel}</span>
+                  {r.is_pkl && <span className={`text-[10px] font-bold px-1 py-0.5 rounded ${isSelected && !sudahDikontrak && !penuh ? 'bg-white/25 text-white' : 'bg-amber-100 text-amber-700'}`}>PKL</span>}
                 </span>
-                {sudahDikontrak ? <span className="text-[10px] font-semibold whitespace-nowrap">✓ {jpSudah} JP</span> : isSelected && <span className="text-xs">✓</span>}
+                {sudahDikontrak
+                  ? <span className="text-[10px] font-semibold whitespace-nowrap">✓ {jpSudah} JP</span>
+                  : penuh
+                  ? <span className="text-[10px] font-semibold whitespace-nowrap">✕ Penuh</span>
+                  : sebagian
+                  ? <span className="text-[10px] font-semibold whitespace-nowrap">{im.terisi}/{im.total} JP</span>
+                  : isSelected && <span className="text-xs">✓</span>}
               </button>
             );
           })}
@@ -367,9 +442,15 @@ const handleSelectAllRombel = () => {
 
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah JP / Minggu</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Jumlah JP / Minggu <span className="text-gray-400 font-normal">(di sekolah)</span></label>
             <input type="number" min={1} max={40} value={form.jumlah_jp} onChange={e => set('jumlah_jp', e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+            {(() => {
+              const m = mapelList.find(x => x.id_mapel === form.id_mapel);
+              return m?.jp_diluar > 0 ? (
+                <p className="text-xs text-purple-600 mt-1">+ {m.jp_diluar} JP di luar (otomatis dijadwalkan tanpa ruangan)</p>
+              ) : null;
+            })()}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Maks Jam Harian</label>
@@ -378,71 +459,71 @@ const handleSelectAllRombel = () => {
           </div>
         </div>
 
-        {/* Preferensi Hari */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Preferensi Hari (bobot 1–5)</label>
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-gray-600">Hari</th>
-                  {[1,2,3,4,5].map(n => <th key={n} className="px-3 py-2 text-center text-gray-500">{n}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {HARI.map(hari => (
-                  <tr key={hari} className="border-t border-gray-100">
-                    <td className="px-4 py-2 font-medium text-gray-700">{hari}</td>
-                    {[1, 2, 3, 4, 5].map(n => (
-                      <td key={n} className="px-3 py-2 text-center">
-                        <input
-                          type="radio"
-                          name={`pref-hari-${hari}`}
-                          checked={form.preferensi_hari.hari?.[hari] === n}
-                          onChange={() => setBobot('hari', hari, n)}
-                          className="accent-blue-600"
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* ===== Preferensi Guru: bobot hari & sesi (skala 1-5) ===== */}
+        <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800">Preferensi Mengajar Guru</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Skala <strong>1</strong> (sangat tidak disukai) sampai <strong>5</strong> (sangat disukai).
+                Nilai <strong>3</strong> = netral. Dipakai algoritma sebagai <em>soft constraint</em> —
+                tidak akan mengalahkan aturan bebas bentrok.
+              </p>
+            </div>
+            <button type="button"
+              onClick={() => set('preferensi_hari', defaultPreferensi())}
+              className="text-xs px-2 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-100 whitespace-nowrap">
+              Reset netral
+            </button>
           </div>
+
+          <label className="block text-xs font-medium text-gray-600 mb-1">Preferensi Hari</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
+            {HARI.map(h => {
+              const v = form.preferensi_hari?.hari?.[h] ?? 3;
+              const warna = v >= 4 ? 'border-green-400 bg-green-50' : v <= 2 ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white';
+              return (
+                <div key={h} className={`rounded-lg border px-2 py-2 ${warna}`}>
+                  <div className="text-xs font-medium text-gray-700 text-center mb-1">{h}</div>
+                  <select value={v} onChange={e => setBobot('hari', h, e.target.value)}
+                    className="w-full border border-gray-300 rounded px-1 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+
+          <label className="block text-xs font-medium text-gray-600 mb-1">Preferensi Sesi</label>
+          <div className="grid grid-cols-2 gap-2 max-w-xs">
+            {SHIFT.map(s => {
+              const v = form.preferensi_hari?.shift?.[s] ?? 3;
+              const warna = v >= 4 ? 'border-green-400 bg-green-50' : v <= 2 ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white';
+              return (
+                <div key={s} className={`rounded-lg border px-2 py-2 ${warna}`}>
+                  <div className="text-xs font-medium text-gray-700 text-center mb-1">{s}</div>
+                  <select value={v} onChange={e => setBobot('shift', s, e.target.value)}
+                    className="w-full border border-gray-300 rounded px-1 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="text-[11px] text-gray-500 mt-3">
+            💡 Guru berstatus <strong>GTY</strong> mendapat bobot pemenuhan tertinggi, lalu <strong>PNS</strong>,
+            kemudian <strong>GTT</strong>.
+          </p>
         </div>
 
-        {/* Preferensi Sesi */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Preferensi Sesi (bobot 1–5)</label>
-          <div className="border border-gray-200 rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-gray-600">Sesi</th>
-                  {[1,2,3,4,5].map(n => <th key={n} className="px-3 py-2 text-center text-gray-500">{n}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {SHIFT.map(shift => (
-                  <tr key={shift} className="border-t border-gray-100">
-                    <td className="px-4 py-2 font-medium text-gray-700">{shift}</td>
-                    {[1, 2, 3, 4, 5].map(n => (
-                      <td key={n} className="px-3 py-2 text-center">
-                        <input
-                          type="radio"
-                          name={`pref-shift-${shift}`}
-                          checked={form.preferensi_hari.shift?.[shift] === n}
-                          onChange={() => setBobot('shift', shift, n)}
-                          className="accent-blue-600"
-                        />
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Peringatan jatah JP per tingkat (dari Settings) */}
+        {rombelLewatJatah.length > 0 && (
+          <div className="bg-orange-50 border border-orange-300 rounded-lg px-4 py-3 text-sm text-orange-800">
+            ⚠️ Melebihi <strong>jatah JP per minggu</strong> (Settings):{' '}
+            {rombelLewatJatah.map(r => `${r.nama} (${r.proyeksi}/${r.jatah} JP)`).join(', ')}
           </div>
-        </div>
+        )}
 
         {/* Peringatan batas JP guru */}
         {lewatBatasJp && (

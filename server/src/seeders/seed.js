@@ -218,9 +218,9 @@ async function seed() {
   await Setting.create({
     id_setting: 1,
     max_jam_mengajar: 24,
-    jatah_mapel_x: 14,
-    jatah_mapel_xi: 14,
-    jatah_mapel_xii: 14,
+    jatah_jp_x: 50,
+    jatah_jp_xi: 50,
+    jatah_jp_xii: 50,
     fitur_pkl_aktif: false,
     mode_kurikulum: 'dua_sesi',
     jp_menit: 40,

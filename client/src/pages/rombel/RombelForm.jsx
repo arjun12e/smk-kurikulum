@@ -7,7 +7,7 @@ export default function RombelForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
-  const [form, setForm] = useState({ id_rombel: '', nama_rombel: '', tingkat: 'X', jurusan: '', is_pkl: false });
+  const [form, setForm] = useState({ id_rombel: '', nama_rombel: '', tingkat: 'X', jurusan: '', is_pkl: false, sesi: 'Pagi', sesi_hari: {} });
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -17,7 +17,7 @@ export default function RombelForm() {
 
   useEffect(() => {
     if (isEdit) {
-      api.get(`/rombel/${id}`).then(r => setForm({ ...r.data, is_pkl: r.data.is_pkl || false }));
+      api.get(`/rombel/${id}`).then(r => setForm({ ...r.data, is_pkl: r.data.is_pkl || false, sesi_hari: r.data.sesi_hari || {} }));
     } else {
       // Auto-generate next ID for add mode
       api.get('/rombel').then(res => {
@@ -31,6 +31,14 @@ export default function RombelForm() {
   }, [id, isEdit]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const setHari = (hari, val) => setForm(f => {
+    const sh = { ...(f.sesi_hari || {}) };
+    if (!val) delete sh[hari]; else sh[hari] = val;
+    return { ...f, sesi_hari: sh };
+  });
+  const preset = (obj, def) => setForm(f => ({ ...f, sesi: def ?? f.sesi, sesi_hari: obj }));
 
   const submit = async e => {
     e.preventDefault();
@@ -68,6 +76,38 @@ export default function RombelForm() {
           <label className="block text-sm font-medium text-gray-700 mb-1">Jurusan</label>
           <input value={form.jurusan} onChange={e => set('jurusan', e.target.value)} placeholder="TAV / TKJ / TSM / TPM / TKR"
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+        </div>
+        <div className="border border-gray-200 rounded-lg p-3">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Sesi Masuk Siswa <span className="text-gray-400 font-normal">(fokus siswa — jadi batasan algoritma)</span></label>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-gray-500">Default semua hari:</span>
+            <select value={form.sesi || 'Pagi'} onChange={e => set('sesi', e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="Pagi">Pagi</option>
+              <option value="Siang">Siang</option>
+            </select>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <button type="button" onClick={() => preset({}, 'Pagi')} className="text-xs px-2 py-1 rounded bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100">Semua Pagi</button>
+            <button type="button" onClick={() => preset({}, 'Siang')} className="text-xs px-2 py-1 rounded bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100">Semua Siang</button>
+            <button type="button" onClick={() => preset({ Senin: 'Pagi', Selasa: 'Pagi', Rabu: 'Pagi', Kamis: 'Siang', Jumat: 'Siang', Sabtu: 'Siang' })}
+              className="text-xs px-2 py-1 rounded bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100">Sen–Rab Pagi, Kam–Sab Siang</button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {HARI.map(hari => (
+              <div key={hari}>
+                <label className="block text-[11px] text-gray-500 mb-0.5">{hari}</label>
+                <select value={form.sesi_hari?.[hari] || ''} onChange={e => setHari(hari, e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Ikut default ({form.sesi || 'Pagi'})</option>
+                  <option value="Pagi">Pagi</option>
+                  <option value="Siang">Siang</option>
+                  <option value="Libur">Libur</option>
+                </select>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Atur sesi berbeda tiap hari bila perlu (mis. Sen–Rab pagi, Kam–Sab siang). "Libur" = rombel tidak dijadwalkan di hari itu.</p>
         </div>
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
           <label className="flex items-center gap-3 cursor-pointer">

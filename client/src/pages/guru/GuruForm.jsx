@@ -160,7 +160,7 @@ export default function GuruForm() {
           <input
             type="number"
             min="0"
-            max="40"
+            max="48"
             value={form.total_jam_mengajar ?? ''}
             onChange={e => set('total_jam_mengajar', parseInt(e.target.value) || 0)}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"

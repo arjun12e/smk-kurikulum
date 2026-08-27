@@ -13,9 +13,13 @@ const JENIS_STYLE = {
   Bengkel: { dot: 'bg-orange-500', bar: 'bg-orange-500', cell: 'bg-orange-500', soft: 'bg-orange-50 text-orange-700' },
 };
 
-function RuanganCard({ r }) {
+function RuanganCard({ r, dims }) {
   const style = JENIS_STYLE[r.jenis_ruangan] || JENIS_STYLE.Teori;
   const persen = r.kapasitas ? Math.round((r.terpakai / r.kapasitas) * 100) : 0;
+  // Dimensi dari backend (mengikuti mode kurikulum); fallback ke konstanta lama
+  const hariList = dims?.hari || HARI;
+  const shiftList = dims?.shift || SHIFT;
+  const slotList = dims?.slots || SLOTS;
 
   // Set slot terpakai -> "hari-shift-slot"
   const terpakai = new Set(r.detail.map(d => `${d.hari}-${d.waktu_shift}-${d.slot_jam}`));
@@ -42,13 +46,13 @@ function RuanganCard({ r }) {
         <div className={`h-full ${style.bar}`} style={{ width: `${persen}%` }} />
       </div>
 
-      {/* Mini heatmap: kolom = hari, baris = Pagi1-5, Siang1-5 */}
-      <div className="grid grid-cols-6 gap-[3px]">
-        {HARI.map((hari, hi) => (
+      {/* Mini heatmap: kolom = hari, baris = slot per sesi (mengikuti mode) */}
+      <div className={`grid gap-[3px] ${hariList.length === 5 ? 'grid-cols-5' : 'grid-cols-6'}`}>
+        {hariList.map(hari => (
           <div key={hari} className="flex flex-col gap-[2px]">
-            <div className="text-[8px] text-center text-gray-400 leading-none mb-[1px]">{HARI_PENDEK[hi]}</div>
-            {SHIFT.map(shift =>
-              SLOTS.map(slot => {
+            <div className="text-[8px] text-center text-gray-400 leading-none mb-[1px]">{HARI_PENDEK[HARI.indexOf(hari)] || hari.slice(0, 3)}</div>
+            {shiftList.map(shift =>
+              slotList.map(slot => {
                 const key = `${hari}-${shift}-${slot}`;
                 const isi = terpakai.has(key);
                 const d = info[key];
@@ -86,6 +90,13 @@ export default function RuanganMap() {
   const totalKapasitas = ruangan.reduce((s, r) => s + r.kapasitas, 0);
   const kosong = ruangan.filter(r => r.terpakai === 0).length;
 
+  // Dimensi heatmap dari backend (mode kurikulum aktif)
+  const dims = {
+    hari: data.hari || HARI,
+    shift: data.shift || SHIFT,
+    slots: Array.from({ length: data.slotPerShift || 8 }, (_, i) => i + 1),
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm p-5">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
@@ -109,7 +120,7 @@ export default function RuanganMap() {
         <p className="text-sm text-gray-500">Belum ada data. Generate jadwal terlebih dahulu untuk melihat penggunaan ruangan.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {tampil.map(r => <RuanganCard key={r.id_ruangan} r={r} />)}
+          {tampil.map(r => <RuanganCard key={r.id_ruangan} r={r} dims={dims} />)}
         </div>
       )}
     </div>

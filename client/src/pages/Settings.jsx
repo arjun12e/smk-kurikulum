@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react';
 import api from '../api/axios';
 import toast from 'react-hot-toast';
 
+const DEFAULT_ISTIRAHAT = [
+  { setelah: 4, label: 'MBG', menit: 20 },
+  { setelah: 4, label: 'Istirahat', menit: 20 },
+  { setelah: 8, label: 'Sholat Dzuhur Berjamaah', menit: 30 },
+  { setelah: 12, label: 'Istirahat', menit: 20 },
+  { setelah: 12, label: 'MBG', menit: 10 },
+];
+
 export default function Settings() {
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,13 +30,38 @@ export default function Settings() {
     }
   };
 
-  const NON_NUMERIC = ['fitur_pkl_aktif', 'mode_kurikulum', 'jam_mulai_pagi', 'jam_mulai_siang'];
+  const NON_NUMERIC = ['fitur_pkl_aktif', 'mode_kurikulum', 'jam_mulai_pagi', 'jam_mulai_siang', 'istirahat_list', 'jadwal_khusus'];
   const handleChange = (field, value) => {
     setSettings(prev => ({
       ...prev,
       [field]: NON_NUMERIC.includes(field) ? value : Number(value)
     }));
   };
+
+  // Editor daftar istirahat
+  const updIstirahat = (i, field, val) => setSettings(p => {
+    const list = [...(p.istirahat_list || [])];
+    list[i] = { ...list[i], [field]: val };
+    return { ...p, istirahat_list: list };
+  });
+  const addIstirahat = () => setSettings(p => ({ ...p, istirahat_list: [...(p.istirahat_list || []), { setelah: 4, label: 'Istirahat', menit: 20 }] }));
+  const delIstirahat = (i) => setSettings(p => ({ ...p, istirahat_list: (p.istirahat_list || []).filter((_, idx) => idx !== i) }));
+
+  // Editor jadwal khusus (batas JP per hari/sesi)
+  const HARI_LIST = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const [khHari, setKhHari] = useState('Senin');
+  const [khSesi, setKhSesi] = useState('Pagi');
+  const setKhususField = (key, field, value) => setSettings(p => ({
+    ...p, jadwal_khusus: { ...p.jadwal_khusus, [key]: { ...p.jadwal_khusus[key], [field]: value } },
+  }));
+  const removeKhusus = (key) => setSettings(p => {
+    const jk = { ...(p.jadwal_khusus || {}) }; delete jk[key]; return { ...p, jadwal_khusus: jk };
+  });
+  const addKhusus = () => setSettings(p => {
+    const key = `${khHari}-${khSesi}`;
+    if (p.jadwal_khusus?.[key]) return p;
+    return { ...p, jadwal_khusus: { ...(p.jadwal_khusus || {}), [key]: { aktif: true, label: '', max_jp: 6 } } };
+  });
 
   const handleSave = async () => {
     setSaving(true);
@@ -61,7 +94,7 @@ export default function Settings() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {[
               { val: 'dua_sesi', judul: 'Dua Sesi', desc: 'Senin–Sabtu, sesi Pagi & Siang (8 jam/sesi). Seperti yang berjalan saat ini.' },
-              { val: 'satu_sesi', judul: 'Satu Sesi', desc: 'Senin–Jumat, satu sesi, maks 10 JP/hari (≈50 JP/minggu). Jumlah jam tiap hari bisa berbeda.' },
+              { val: 'satu_sesi', judul: 'Satu Sesi', desc: 'Senin–Sabtu (6 hari), satu sesi, maks 14 JP/hari. Menampung hari panjang (upacara Senin, Jumat sampai sore) tanpa jadwal khusus per hari & tanpa memadatkan ke 5 hari.' },
             ].map(opt => (
               <label key={opt.val}
                 className={`cursor-pointer rounded-lg border-2 p-4 transition ${settings.mode_kurikulum === opt.val ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
@@ -77,10 +110,16 @@ export default function Settings() {
           <p className="text-xs text-gray-500 mt-2">Mode ini menentukan hari, sesi, dan kapasitas jam saat menjalankan algoritma penjadwalan. Generate ulang jadwal setelah mengubahnya.</p>
         </div>
 
-        {/* Waktu Pelajaran */}
+        {/* Waktu Pelajaran + Daftar Istirahat */}
         <div className="border-b pb-6">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Waktu Pelajaran (Kalender)</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Waktu Pelajaran & Istirahat</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Jam Mulai Hari</label>
+              <input type="time" value={settings.jam_mulai_pagi || '06:30'}
+                onChange={e => handleChange('jam_mulai_pagi', e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Durasi 1 JP (menit)</label>
               <input type="number" min="1" max="120" value={settings.jp_menit ?? 40}
@@ -88,37 +127,90 @@ export default function Settings() {
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Durasi Istirahat (menit)</label>
-              <input type="number" min="0" max="120" value={settings.istirahat_menit ?? 35}
-                onChange={e => handleChange('istirahat_menit', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Jam Mulai Pagi / Satu Sesi</label>
-              <input type="time" value={settings.jam_mulai_pagi || '07:00'}
-                onChange={e => handleChange('jam_mulai_pagi', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Jam Mulai Siang <span className="text-gray-400">(mode dua sesi)</span></label>
-              <input type="time" value={settings.jam_mulai_siang || '13:00'}
-                onChange={e => handleChange('jam_mulai_siang', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Istirahat setelah JP ke- <span className="text-gray-400">(dua sesi)</span></label>
-              <input type="number" min="1" max="10" value={settings.istirahat_setelah_dua_sesi ?? 4}
-                onChange={e => handleChange('istirahat_setelah_dua_sesi', e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Istirahat setelah JP ke- <span className="text-gray-400">(satu sesi)</span></label>
-              <input type="number" min="1" max="12" value={settings.istirahat_setelah_satu_sesi ?? 5}
-                onChange={e => handleChange('istirahat_setelah_satu_sesi', e.target.value)}
+              <label className="block text-sm text-gray-600 mb-1">Total JP / Hari</label>
+              <input type="number" min="1" max="20" value={settings.jumlah_jp ?? 14}
+                onChange={e => handleChange('jumlah_jp', e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
-          <p className="text-xs text-gray-500 mt-2">Dipakai untuk menampilkan kolom waktu & istirahat di kalender akademik (rombel & guru).</p>
+
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold text-gray-700">Daftar Istirahat (MBG, Sholat, dll.)</h3>
+            <button type="button" onClick={() => handleChange('istirahat_list', DEFAULT_ISTIRAHAT)}
+              className="text-xs text-blue-600 hover:underline">Reset ke default</button>
+          </div>
+          <div className="space-y-2">
+            <div className="grid grid-cols-12 gap-2 text-[11px] text-gray-400 px-1">
+              <span className="col-span-3">Setelah JP ke-</span>
+              <span className="col-span-6">Nama</span>
+              <span className="col-span-2">Menit</span>
+              <span className="col-span-1"></span>
+            </div>
+            {(settings.istirahat_list || []).map((it, i) => (
+              <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                <input type="number" min="0" max="20" value={it.setelah ?? 0}
+                  onChange={e => updIstirahat(i, 'setelah', Number(e.target.value))}
+                  className="col-span-3 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                <input value={it.label || ''} placeholder="mis. MBG / Sholat Dzuhur"
+                  onChange={e => updIstirahat(i, 'label', e.target.value)}
+                  className="col-span-6 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                <input type="number" min="0" max="120" value={it.menit ?? 0}
+                  onChange={e => updIstirahat(i, 'menit', Number(e.target.value))}
+                  className="col-span-2 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                <button type="button" onClick={() => delIstirahat(i)}
+                  className="col-span-1 text-red-500 hover:text-red-700 text-lg leading-none">✕</button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={addIstirahat}
+            className="mt-2 text-sm px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200">+ Tambah Istirahat</button>
+          <p className="text-xs text-gray-500 mt-2">Jam tiap JP & baris istirahat di kalender dihitung berurutan dari "Jam Mulai Hari". Beberapa istirahat boleh setelah JP yang sama (mis. MBG lalu Istirahat setelah JP 4).</p>
+        </div>
+
+        {/* Jadwal Khusus — batas JP per hari/sesi (upacara, sholat Jumat, dll.) */}
+        <div className="border-b pb-6">
+          <h2 className="text-lg font-semibold text-gray-700 mb-1">Jadwal Khusus (Batas JP per Hari)</h2>
+          <p className="text-xs text-gray-500 mb-4">Batasi jumlah jam pelajaran pada hari tertentu (mis. Senin dipotong upacara, Jumat lebih pendek karena sholat). Jam di atas batas akan ditandai abu-abu di kalender & tidak diisi algoritma.</p>
+
+          {/* Form tambah hari khusus */}
+          <div className="flex flex-wrap items-end gap-2 mb-3 p-3 bg-gray-50 rounded-lg">
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-1">Hari</label>
+              <select value={khHari} onChange={e => setKhHari(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                {HARI_LIST.map(h => <option key={h}>{h}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] text-gray-500 mb-1">Sesi</label>
+              <select value={khSesi} onChange={e => setKhSesi(e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm">
+                <option>Pagi</option><option>Siang</option>
+              </select>
+            </div>
+            <button type="button" onClick={addKhusus} className="px-3 py-1.5 rounded-lg bg-[#1e3a5f] text-white text-sm hover:bg-[#162d4a]">+ Tambah Hari Khusus</button>
+          </div>
+
+          <div className="space-y-2">
+            {Object.keys(settings.jadwal_khusus || {}).length === 0 && (
+              <p className="text-xs text-gray-400 px-1">Belum ada jadwal khusus. Semua hari memakai jumlah JP penuh.</p>
+            )}
+            {Object.entries(settings.jadwal_khusus || {}).map(([key, p]) => (
+              <div key={key} className={`flex flex-wrap items-center gap-3 rounded-lg border-2 p-3 ${p.aktif ? 'border-amber-300 bg-amber-50/50' : 'border-gray-200 opacity-60'}`}>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={!!p.aktif} onChange={e => setKhususField(key, 'aktif', e.target.checked)} className="w-4 h-4 accent-amber-600" />
+                  <span className="font-semibold text-gray-800 text-sm w-28">{key.replace('-', ' · ')}</span>
+                </label>
+                <input value={p.label || ''} onChange={e => setKhususField(key, 'label', e.target.value)} placeholder="Keterangan (mis. Upacara)"
+                  className="flex-1 min-w-[140px] border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 whitespace-nowrap">Sampai JP ke-</span>
+                  <input type="number" min="1" max="14" value={p.max_jp ?? 6} onChange={e => setKhususField(key, 'max_jp', Number(e.target.value))}
+                    className="w-16 border border-gray-300 rounded-lg px-2 py-1.5 text-sm" />
+                </div>
+                <button type="button" onClick={() => removeKhusus(key)} className="text-red-500 hover:text-red-700 text-lg leading-none">✕</button>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Generate ulang jadwal setelah mengubah bagian ini (batas JP memengaruhi kapasitas algoritma).</p>
         </div>
 
         {/* Jam Mengajar */}
@@ -153,14 +245,14 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Jatah Mapel */}
+        {/* Jatah JP per Tingkat */}
         <div className="border-b pb-6">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">Jatah Mata Pelajaran per Tingkat</h2>
+          <h2 className="text-lg font-semibold text-gray-700 mb-4">Jatah JP per Tingkat</h2>
           <div className="space-y-4">
             {[
-              { key: 'jatah_mapel_x', label: 'Kelas X', desc: 'Jatah mata pelajaran untuk kelas X' },
-              { key: 'jatah_mapel_xi', label: 'Kelas XI', desc: 'Jatah mata pelajaran untuk kelas XI' },
-              { key: 'jatah_mapel_xii', label: 'Kelas XII', desc: 'Jatah mata pelajaran untuk kelas XII' },
+              { key: 'jatah_jp_x', label: 'Kelas X', desc: 'Jatah total JP per minggu untuk tiap rombel kelas X' },
+              { key: 'jatah_jp_xi', label: 'Kelas XI', desc: 'Jatah total JP per minggu untuk tiap rombel kelas XI' },
+              { key: 'jatah_jp_xii', label: 'Kelas XII', desc: 'Jatah total JP per minggu untuk tiap rombel kelas XII' },
             ].map(item => (
               <div key={item.key}>
                 <label className="block text-sm font-medium text-gray-600 mb-2">
@@ -170,17 +262,18 @@ export default function Settings() {
                   <input
                     type="number"
                     min="1"
-                    max="50"
-                    value={settings[item.key]}
+                    max="80"
+                    value={settings[item.key] ?? 50}
                     onChange={e => handleChange(item.key, e.target.value)}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-gray-500 whitespace-nowrap">mapel</span>
+                  <span className="text-sm text-gray-500 whitespace-nowrap">JP/minggu</span>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">{item.desc}</p>
               </div>
             ))}
           </div>
+          <p className="text-xs text-gray-500 mt-2">Total JP kontrak sebuah rombel yang melebihi jatah tingkatnya akan ditandai peringatan di halaman Kontrak Mengajar.</p>
         </div>
 
         {/* Fitur PKL */}
